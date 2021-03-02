@@ -18,13 +18,16 @@ class DenseMotionNetwork(tf.keras.Model):
     self.up_features_list = [1024, 512, 256, 128, 64]
     self.padding = [[0, 0], [3, 3], [3, 3], [0, 0]] # pad only height, width
 
-    self.hourglass = Hourglass(self.down_features_list, self.up_features_list, self.num_blocks) # Outputs height x width x 67
-    self.mask = layers.Conv2D(self.num_keypoints + 1, (7, 7), strides=1, padding="valid")
-    self.occlusion = layers.Conv2D(1, (7, 7), strides=1, padding="valid")
     self.down = AntiAliasInterpolation(self.num_channels, self.scale_factor)
+
+    self.hourglass = Hourglass(self.down_features_list, self.up_features_list, self.num_blocks) # Outputs height x width x 67
+    self.mask = layers.Conv2D(self.num_keypoints + 1, (7, 7), strides=1, padding="same")
+    self.occlusion = layers.Conv2D(1, (7, 7), strides=1, padding="same")
+    
   
   def create_heatmap_representations(self, image_size, kp_driving, kp_source):
-    spatial_size = image_size[1:4]
+    # yandong fix bug
+    spatial_size = image_size[1:3]
     # shape 256 x 256
 
     gaussian_driving = keypoints_to_gaussian(kp_driving, spatial_size=spatial_size, kp_variance=self.kp_variance)
@@ -104,10 +107,10 @@ class DenseMotionNetwork(tf.keras.Model):
     return sparse_motions
 
   def create_deformed_source_image(self, source_image, sparse_motions):
-    batch_size, _, height, width = source_image.shape
+    batch_size, height, width, _ = source_image.shape
     # batch x 256 x 256 x 3
 
-    source_repeat = tf.expand_dims(tf.expand_dims(source_image, axis=1))
+    source_repeat = tf.expand_dims(source_image, axis=1)
     # batch x 1 x 256 x 256 x 3
     
     source_repeat = tf.tile(source_repeat, [1, self.num_keypoints + 1, 1, 1, 1])
@@ -115,13 +118,16 @@ class DenseMotionNetwork(tf.keras.Model):
 
     source_repeat = tf.reshape(source_repeat, [batch_size * (self.num_keypoints + 1), height, width, -1])
     # (batch . 11) x 256 x 256 x 3
-    
     sparse_motions = tf.reshape(sparse_motions, [batch_size * (self.num_keypoints + 1), height, width, -1])
     # (batch . 11) x 256 x 256 x 2
 
-    new_max = width - 1
-    new_min = 0
-    sparse_motions = (new_max - new_min) / (tf.keras.backend.max(sparse_motions) - tf.keras.backend.min(sparse_motions)) * (sparse_motions - tf.keras.backend.max(sparse_motions)) + new_max
+    # [Yandong To Do] replcae tf add on with own implementation 
+    # refer to pytorch grid_sampler align_corner = False (this is standard even for tf upsampling2d)
+    # added by yandong for correct normalization
+    sparse_motions = ((sparse_motions + 1.0) * width - 1.0) * 0.5
+    # new_max = width - 1
+    # new_min = 1
+    # sparse_motions = (new_max - new_min) / (tf.keras.backend.max(sparse_motions) - tf.keras.backend.min(sparse_motions)) * (sparse_motions - tf.keras.backend.max(sparse_motions)) + new_max
 
     sparse_deformed = tfa.image.resampler(source_repeat, sparse_motions)
     # (batch . 11) x 256 x 256 x 3
@@ -133,6 +139,7 @@ class DenseMotionNetwork(tf.keras.Model):
   
   def call(self, source_image, kp_driving, kp_source):
     source_image = self.down(source_image)
+
     image_size = source_image.shape
     batch_size, height, width, _ = image_size
     out_dict = dict()
@@ -144,22 +151,27 @@ class DenseMotionNetwork(tf.keras.Model):
     warped_images = self.create_deformed_source_image(source_image, sparse_motion)
     # shape batch x 11 x 256 x 256 x 3
 
+    # print('----------------after heatmap-----------')
+    # feature_map_trans = tf.transpose(warped_images, perm=[0, 1, 4, 2, 3])
+    # # feature_map_trans = warped_images
+    # print(feature_map_trans.shape)
+    # print(feature_map_trans)
+    # print('----------------end heatmap -----------')
+
     # Debug/print
     out_dict['warped_images'] = warped_images # sparse_deformed
 
     input = tf.concat([heatmap_representation, warped_images], axis=-1)
     # shape batch x 22 x 256 x 256 x 3
 
-    input = tf.permute(input, [0, 2, 3, 1, 4])
+    input = tf.transpose(input, perm=[0, 2, 3, 1, 4])
     # shape batch x 256 x 256 x 22 x 3
     
     input = tf.reshape(input, [batch_size, height, width, -1])
     # shape batch x 256 x 256 x 66
 
     prediction = self.hourglass(input)
-    # batch x height x width x 35
-
-    prediction = tf.pad(prediction, self.padding)
+    # batch x height x width x 108
 
     mask = self.mask(prediction)
     # batch x height x width x 11
@@ -174,11 +186,11 @@ class DenseMotionNetwork(tf.keras.Model):
     mask = tf.expand_dims(mask, axis=-1)
     # batch x height x width x 11 x 1
 
-    sparse_motion = tf.transpose(sparse_motion, [0, 2, 3, 1, 4])
+    sparse_motion = tf.transpose(sparse_motion, perm=[0, 2, 3, 1, 4])
     # batch x 256 x 256 x 11 x 2
 
     deformation = (sparse_motion * mask)
-    deformation = tf.keras.backend.sum(sparse_motion, axis=3) 
+    deformation = tf.keras.backend.sum(deformation, axis=3)
     # batch x 256 x 256 x 2
 
     out_dict['dense_optical_flow'] = deformation # deformation

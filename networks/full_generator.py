@@ -1,7 +1,8 @@
 import tensorflow as tf
 from tensorflow.keras import layers
 
-from utils import detach_keypoint, Transform
+from utils.util import detach_keypoint
+from utils.models import Transform
 from utils.models import ImagePyramide, Vgg19
 
 class FullGenerator(tf.keras.Model):

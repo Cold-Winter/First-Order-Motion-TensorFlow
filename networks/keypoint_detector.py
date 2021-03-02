@@ -50,8 +50,15 @@ class KeypointDetector(tf.keras.Model):
     return kp
   
   def call(self, x):
+
     model = self.down(x)
+    
     feature_map = self.predictor(model)
+    # print('----------------after first depth conv-----------')
+    # feature_map_trans = tf.transpose(feature_map, perm=[0, 3, 1, 2])
+    # print(feature_map_trans.shape)
+    # print(feature_map_trans)
+    # print('----------------end first depth conv-----------')
     raw_keypoints = self.keypoints_map(feature_map)
 
     final_shape = raw_keypoints.shape # pytorch 4, 10, 5, 5 tf: 4, 5, 5, 10
@@ -66,7 +73,7 @@ class KeypointDetector(tf.keras.Model):
     jacobian_map = tf.reshape(jacobian_map, [final_shape[0], final_shape[1], final_shape[2], self.num_jacobian_maps, 4])
     # batch x height x width x 10 x 4
 
-    heatmap = tf.expan_dims(heatmap, axis=-1)
+    heatmap = tf.expand_dims(heatmap, axis=-1)
     # batch x height x width x 10 x 1
 
     jacobian = heatmap * jacobian_map # reduce the importance of the places far from the keypoints coords

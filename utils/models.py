@@ -30,14 +30,23 @@ class AntiAliasInterpolation(tf.keras.Model):
 
     # Important since we want to apply the kernel to each channel dimension
     self.conv = layers.DepthwiseConv2D(kernel_size=kernel_size, strides=1, use_bias=False, padding="same", weights=[kernel])
+    self.int_inv_scale = int(1.0 / scale)
 
   def call(self, input):
     if self.scale == 1.0:
       return input
 
     out = self.conv(input)
+    # print(out.shape)
+    out_trans = tf.transpose(out, perm=[0, 3, 1, 2])
+    # print(out_trans.shape)
+    # print('----------------after first depth conv-----------')
+    # print(out_trans.shape)
+    # print(out_trans)
+    # print('----------------end first depth conv-----------')
     new_size = int(self.scale * input.shape[1])
-    out = interpolate_tensor(out, new_size)
+    # out = interpolate_tensor(out, new_size)
+    out = out[:, ::self.int_inv_scale, ::self.int_inv_scale, :]
 
     return out
 
@@ -92,10 +101,12 @@ class Hourglass(tf.keras.Model):
     self.decoder_blocks = decoder_blocks
   
   def call(self, x):
+
     down_block_list = [x]
+
     for down_block in self.encoder_blocks:
       down_block_list.append(down_block(down_block_list[-1]))
-    
+
     model = down_block_list.pop()
 
     for up_block in self.decoder_blocks:

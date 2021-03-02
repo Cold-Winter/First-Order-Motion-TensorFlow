@@ -16,7 +16,7 @@ class Generator(tf.keras.Model):
     self.num_blocks = 2
     self.num_bottleneck_blocks = 6
     
-    self.dense_motion_network = DenseMotionNetwork()
+    # 
     self.first = SameBlock2d(block_expansion)
 
     self.down_features_list = [128, 256]
@@ -24,15 +24,17 @@ class Generator(tf.keras.Model):
 
     encoder_blocks = []
 
-    for i in range(num_blocks):
+    for i in range(self.num_blocks):
       num_features = self.down_features_list[i]
       encoder_blocks.append(DownBlock(num_features))
     
     self.encoder_blocks = encoder_blocks
 
+    self.dense_motion_network = DenseMotionNetwork()
+
     decoder_blocks = []
 
-    for i in range(num_blocks):
+    for i in range(self.num_blocks):
       num_features = self.up_features_list[i]
       decoder_blocks.append(UpBlock(num_features))
     
@@ -40,29 +42,38 @@ class Generator(tf.keras.Model):
 
     self.bottleneck = tf.keras.Sequential()
 
-    for i in range(num_bottleneck_blocks):
+    for i in range(self.num_bottleneck_blocks):
       self.bottleneck.add(ResBlock2d(self.down_features_list[-1]))
 
-    self.final = layers.Conv2D(self.num_channels, strides=1, padding="valid")
+    self.final = layers.Conv2D(self.num_channels, (7, 7), strides=1, padding="same")
 
-    def deform_input(self, x, deformation):
-      _, height_old, width_old, _ = deformation.shape
-      _, height, width, _ = x.shape
+  def deform_input(self, x, deformation):
+    _, height_old, width_old, _ = deformation.shape
+    _, height, width, _ = x.shape
 
-      if height_old != height or width_old != width:
-        deformation = interpolate_tensor(deformation, width)
-    
-      new_max = width - 1
-      new_min = 0
-      deformation = (new_max - new_min) / (tf.keras.backend.max(deformation) - tf.keras.backend.min(deformation)) * (deformation - tf.keras.backend.max(deformation)) + new_max
+    if height_old != height or width_old != width:
+      # [Yandong To Do]interpolate_tensor is not equvilant with pytorch F.interpolate
+      deformation = interpolate_tensor(deformation, width)
 
-      return tfa.image.resampler(x, deformation)
+    # new_max = width - 1
+    # new_min = 0
+    # deformation = (new_max - new_min) / (tf.keras.backend.max(deformation) - tf.keras.backend.min(deformation)) * (deformation - tf.keras.backend.max(deformation)) + new_max
+
+    deformation = ((deformation + 1.0) * width - 1.0) * 0.5
+
+    return tfa.image.resampler(x, deformation)
   
   def call(self, source_image, kp_driving, kp_source):
-    out = self.first(tf.pad(source_image, self.padding))
+    out = self.first(source_image)
 
     for down_block in self.encoder_blocks:
       out = down_block(out)
+
+    # print('----------------after down_block -----------')
+    # feature_map_trans = tf.transpose(out, perm=[0, 3, 1, 2])
+    # print(feature_map_trans.shape)
+    # print(feature_map_trans)
+    # print('----------------end down_block -----------')
     
     output_dict = {}
 
@@ -89,9 +100,15 @@ class Generator(tf.keras.Model):
     
     out = out * occlusion_map
 
-    # Debug/print
+    # # Debug/print
     output_dict["aligned_features"] = self.deform_input(source_image, dense_optical_flow) # deformed
-    
+    # [Yandong To Do Fix the bug for interpolate]
+    # print('----------------after down_block -----------')
+    # feature_map_trans = tf.transpose(output_dict["aligned_features"], perm=[0, 3, 1, 2])
+    # print(feature_map_trans.shape)
+    # print(feature_map_trans)
+    # print('----------------end down_block -----------')
+
     # Decoder part
 
     out = self.bottleneck(out)
@@ -99,9 +116,18 @@ class Generator(tf.keras.Model):
     for up_block in self.decoder_blocks:
       out = up_block(out)
 
-    out = self.final(tf.pad(out, self.padding))
+    out = self.final(out)
     out = tf.keras.activations.sigmoid(out)
+
+    print('----------------after down_block -----------')
+    feature_map_trans = tf.transpose(out, perm=[0, 3, 1, 2])
+    print(feature_map_trans.shape)
+    print(feature_map_trans)
+    print('----------------end down_block -----------')
 
     output_dict["prediction"] = out
 
     return output_dict
+
+
+
