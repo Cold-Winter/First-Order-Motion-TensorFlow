@@ -41,13 +41,13 @@ class DownBlock2d(tf.keras.Model):
     self.norm = norm
     self.pool = pool
     self.conv = layers.Conv2D(num_features, (4, 4), strides=1, padding="valid")
-    self.instance_norm = tfa.layers.InstanceNormalization(axis=3)
+    self.instance_norm = tfa.layers.InstanceNormalization(axis=3, epsilon=1e-5)
   
   def call(self, input_layer):
     block = self.conv(input_layer)
     if self.norm:
       block = self.instance_norm(block)
-    block = layers.ReLU()(block)
+    block = layers.LeakyReLU(alpha=0.2)(block)
     if self.pool:
       block = layers.AveragePooling2D()(block)
 

@@ -44,3 +44,7 @@ generator.load_weights('./checkpoints/generator/generator')
 kp_source = keypoint_detector(source_image, training=False)
 kp_driving = keypoint_detector(driving_image, training=False)
 out_generator = generator(source_image, kp_source=kp_source, kp_driving=kp_driving)
+
+
+
+

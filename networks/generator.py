@@ -53,7 +53,8 @@ class Generator(tf.keras.Model):
 
     if height_old != height or width_old != width:
       # [Yandong To Do]interpolate_tensor is not equvilant with pytorch F.interpolate
-      deformation = interpolate_tensor(deformation, width)
+      # deformation = interpolate_tensor(deformation, width)
+      deformation = tf.image.resize(deformation, [width,width], method='bilinear')
 
     # new_max = width - 1
     # new_min = 0
@@ -96,7 +97,8 @@ class Generator(tf.keras.Model):
     # batch x 256 x 256 x 2 
 
     if out.shape[1] != occlusion_map.shape[1] or out.shape[2] != occlusion_map.shape[2]:
-      occlusion_map = interpolate_tensor(occlusion_map, out[1])
+      # occlusion_map = interpolate_tensor(occlusion_map, out[1])
+      occlusion_map = tf.image.resize(occlusion_map, [out[1],out[2]], method='bilinear')
     
     out = out * occlusion_map
 
@@ -119,11 +121,11 @@ class Generator(tf.keras.Model):
     out = self.final(out)
     out = tf.keras.activations.sigmoid(out)
 
-    print('----------------after down_block -----------')
-    feature_map_trans = tf.transpose(out, perm=[0, 3, 1, 2])
-    print(feature_map_trans.shape)
-    print(feature_map_trans)
-    print('----------------end down_block -----------')
+    # print('----------------after down_block -----------')
+    # feature_map_trans = tf.transpose(out, perm=[0, 3, 1, 2])
+    # print(feature_map_trans.shape)
+    # print(feature_map_trans)
+    # print('----------------end down_block -----------')
 
     output_dict["prediction"] = out
 

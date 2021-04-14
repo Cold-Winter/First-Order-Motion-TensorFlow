@@ -67,8 +67,10 @@ class ImagePyramide(tf.keras.Model):
 
     return out_dict
 
+# comment by yandong
 class Vgg19(tf.keras.Model):
   def __init__(self):
+    super(Vgg19, self).__init__()
     layers = ['block1_conv2', 'block2_conv2', 'block3_conv2', 'block4_conv2', 'block5_conv2'] 
     vgg = tf.keras.applications.VGG19(include_top=False, weights='imagenet')
     vgg.trainable = False
@@ -79,7 +81,7 @@ class Vgg19(tf.keras.Model):
   
   def call(self, x):
     x = tf.keras.applications.vgg19.preprocess_input(x)
-    return model(x)
+    return self.model(x)
 
 class Hourglass(tf.keras.Model):
   def __init__(self, down_features_list, up_features_list, num_blocks=5):
@@ -121,10 +123,12 @@ class Transform:
     self.sigma_affine = 0.05
     self.sigma_tps = 0.005
     self.points_tps = 5
+
     noise = tf.random.normal((batch_size, 2, 3), mean=0, stddev=self.sigma_affine)
-    # eye returns an identity matrix
+    # # eye returns an identity matrix
     self.theta = noise + tf.expand_dims(tf.eye(2, 3), axis=0)
     # shape batch x 2 x 3
+
     self.batch_size = batch_size
 
     self.control_points = make_coordinate_grid((self.points_tps, self.points_tps), type=noise.dtype)
@@ -132,7 +136,7 @@ class Transform:
     # shape 1 x 5 x 5 x 2
     self.control_params = tf.random.normal((batch_size, 1, self.points_tps ** 2), mean=0, stddev=self.sigma_tps)
     # shape batch x 1 x 25
-  
+ 
   def transform_frame(self, frame):
     grid = make_coordinate_grid(frame.shape[1:3], type=frame.dtype)
     grid = tf.expand_dims(grid, axis=0)
@@ -142,11 +146,16 @@ class Transform:
     # batch x new_size x 2
     grid = tf.reshape(grid, [self.batch_size, frame.shape[1], frame.shape[2], 2])
     # batch x 256 x 256 x 2
-    
-    new_max = frame.shape[2] - 1
-    new_min = 0
-    grid = (new_max - new_min) / (tf.keras.backend.max(grid) - tf.keras.backend.min(grid)) * (grid - tf.keras.backend.max(grid)) + new_max
 
+    # comment to make it consistent with torch F.grid_sampler
+    # new_max = frame.shape[2] - 1
+    # new_min = 0
+    # grid = (new_max - new_min) / (tf.keras.backend.max(grid) - tf.keras.backend.min(grid)) * (grid - tf.keras.backend.max(grid)) + new_max
+
+    width = frame.shape[2]
+    grid = ((grid + 1.0) * width - 1.0) * 0.5
+
+    # still not equal to torch since torch is 'reflection mode' here is zero mode
     return tfa.image.resampler(frame, grid)
     # return F.grid_sample(frame, grid, padding_mode="reflection")
   
