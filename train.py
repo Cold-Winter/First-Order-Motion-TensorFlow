@@ -91,7 +91,7 @@ def train(epochs, total_steps):
         frame_idx = np.sort(np.random.choice(num_frames, replace=True, size=2)) 
         video_array = video_array[frame_idx]
         source_images.append(video_array[0].reshape(1,256,256,3))
-        driving_images.append(video_array[0].reshape(1,256,256,3))
+        driving_images.append(video_array[1].reshape(1,256,256,3))
       source_images = np.concatenate(source_images, axis=0)
       driving_images = np.concatenate(driving_images, axis=0)
 
