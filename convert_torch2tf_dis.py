@@ -133,6 +133,7 @@ def set_weights_for_convblock_dis(conv_block):
 
 set_weights_for_convblock_dis(discriminator.encoder_blocks)
 set_weights_for_conv_dis(discriminator.conv)
+discriminator.save_weights('./checkpoints/discriminator/discriminator')
 
 discriminator_maps_real, discriminator_pred_map = discriminator(driving_image, key_points=detach_keypoint(kp_driving), training = True)
 
@@ -148,6 +149,8 @@ discriminator_full = FullDiscriminator(discriminator)
 with tf.GradientTape(persistent=True) as tape: 
     losses_generator, generated = generator_full(source_image, driving_image, tape, training = True)
     generator_loss = tf.math.reduce_sum(list(losses_generator.values()))
+
+print(losses_generator)
 
 with tf.GradientTape() as tape:
     # comment by yandong

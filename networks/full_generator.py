@@ -56,7 +56,7 @@ class FullGenerator(tf.keras.Model):
     gan_loss = tf.reduce_mean((discriminator_pred_map_generated - 1) ** 2)
 
     # same as tf.reduce_mean(tf.keras.losses.mean_squared_error(tf.ones_like(discriminator_pred_map_generated), discriminator_pred_map_generated))
-    gan_loss += self.loss_weights['generator_gan'] * gan_loss
+    gan_loss = self.loss_weights['generator_gan'] * gan_loss
     loss_values['gen_gan'] = gan_loss
     
     feature_matching_loss = 0.0

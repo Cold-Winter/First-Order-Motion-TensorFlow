@@ -125,7 +125,7 @@ class Transform:
     self.points_tps = 5
 
     noise = tf.random.normal((batch_size, 2, 3), mean=0, stddev=self.sigma_affine)
-    # # eye returns an identity matrix
+    # eye returns an identity matrix
     self.theta = noise + tf.expand_dims(tf.eye(2, 3), axis=0)
     # shape batch x 2 x 3
 
