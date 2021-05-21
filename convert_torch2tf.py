@@ -41,6 +41,7 @@ print('----------------finish kp initial-----------')
 
 
 checkpoint_path = '/home/jinghui/first-order-model/voc_models/vox-adv-cpk.pth.tar'
+# checkpoint_path = '/home/jinghui/first-order-model/voc_models/vox-cpk.pth.tar'
 # checkpoint_path = '/home/jinghui/First-Order-Motion-TensorFlow/ckpt_torch/149_5000imgs.pth.tar'
 checkpoint_dict = torch.load(checkpoint_path, map_location=torch.device('cpu'))['kp_detector']
 
@@ -134,11 +135,13 @@ for conv_block in keypoint_detector.predictor.layers:
 #   if a_weight.name == 'keypoint_detector/hourglass/down_block/batch_normalization/moving_variance:0':
 #     print(a_weight)
 
-source_image = imageio.imread('/home/jinghui/first-order-model/yandong.jpeg')
+# source_image = imageio.imread('/home/jinghui/first-order-model/yandong.jpeg')
+source_image = imageio.imread('/home/jinghui/First-Order-Motion-TensorFlow/videos/id10007/image-00001.png')
 source_image = resize(source_image, (256, 256))[..., :3]
 source_image = source_image.reshape((1,256,256,3))
 
-driving_image = imageio.imread('/home/jinghui/first-order-model/yuting.png')
+# driving_image = imageio.imread('/home/jinghui/first-order-model/yuting.png')
+driving_image = imageio.imread('/home/jinghui/First-Order-Motion-TensorFlow/videos/id10008/image-00001.png')
 driving_image = resize(driving_image, (256, 256))[..., :3]
 driving_image = driving_image.reshape((1,256,256,3))
 
@@ -172,6 +175,7 @@ print('----------------finish generator initial-----------')
 #   print(weight_item.name, "\t", weight_item.shape)
 
 checkpoint_path = '/home/jinghui/first-order-model/voc_models/vox-adv-cpk.pth.tar'
+# checkpoint_path = '/home/jinghui/first-order-model/voc_models/vox-cpk.pth.tar'
 # checkpoint_path = '/home/jinghui/First-Order-Motion-TensorFlow/ckpt_torch/149_5000imgs.pth.tar'
 checkpoint_dict = torch.load(checkpoint_path, map_location=torch.device('cpu'))['generator']
 

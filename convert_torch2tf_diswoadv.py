@@ -10,7 +10,7 @@ from networks.full_generator import FullGenerator
 from networks.full_discriminator import FullDiscriminator
 from networks.keypoint_detector import KeypointDetector
 from networks.generator import Generator
-from networks.discriminator import Discriminator
+from networks.discriminator import DiscriminatorWoadv as Discriminator
 
 from utils.util import detach_keypoint
 
@@ -41,8 +41,8 @@ print('----------------finish generator initial-----------')
 print('----------------finish generator initial-----------')
 print('----------------finish generator initial-----------')
 
-keypoint_detector.load_weights('./checkpoints/kp_detector/kp_detector')
-generator.load_weights('./checkpoints/generator/generator')
+keypoint_detector.load_weights('./checkpoints/kp_detector_woadv/kp_detector')
+generator.load_weights('./checkpoints/generator_woadv/generator')
 
 # with tf.GradientTape(persistent=True) as tape:
 kp_source = keypoint_detector(source_image, training=True)
@@ -70,20 +70,28 @@ print('----------------finish discriminator initial-----------')
 #   print(weight_item.name, "\t", weight_item.shape)
 
 
-checkpoint_path = '/home/jinghui/first-order-model/voc_models/vox-adv-cpk.pth.tar'
+checkpoint_path = '/home/jinghui/first-order-model/voc_models/vox-cpk.pth.tar'
 # checkpoint_path = '/home/jinghui/First-Order-Motion-TensorFlow/ckpt_torch/149_5000imgs.pth.tar'
 checkpoint_dict = torch.load(checkpoint_path, map_location=torch.device('cpu'))['discriminator']
 
+# count = 0
+# for k, v in checkpoint_dict.items():
+#   if 'num_batches_tracked' in k:
+#     continue
+#   print('%03d: %s     ' % (count, k), v.shape)
+#   # print(v.shape)
+#   count += 1
+
 def get_tensor_by_tfname_dis(weight_name):
   layer_torch_to_tf = {
-    'discs.1.down_blocks.0.conv' : 'discriminator/down_block2d/conv2d_42',
-    'discs.1.down_blocks.1.conv' : 'discriminator/down_block2d_1/conv2d_43',
-    'discs.1.down_blocks.1.norm' : 'discriminator/down_block2d_1/instance_normalization_1',
-    'discs.1.down_blocks.2.conv' : 'discriminator/down_block2d_2/conv2d_44',
-    'discs.1.down_blocks.2.norm' : 'discriminator/down_block2d_2/instance_normalization_2',
-    'discs.1.down_blocks.3.conv' : 'discriminator/down_block2d_3/conv2d_45',
-    'discs.1.down_blocks.3.norm' : 'discriminator/down_block2d_3/instance_normalization_3',
-    'discs.1.conv'               : 'discriminator/conv2d_46',
+    'discs.1.down_blocks.0.conv' : 'discriminator_woadv/down_block2d_woadv/conv2d_spectral_norm',
+    'discs.1.down_blocks.1.conv' : 'discriminator_woadv/down_block2d_woadv_1/conv2d_spectral_norm_1',
+    'discs.1.down_blocks.1.norm' : 'discriminator_woadv/down_block2d_woadv_1/instance_normalization_1',
+    'discs.1.down_blocks.2.conv' : 'discriminator_woadv/down_block2d_woadv_2/conv2d_spectral_norm_2',
+    'discs.1.down_blocks.2.norm' : 'discriminator_woadv/down_block2d_woadv_2/instance_normalization_2',
+    'discs.1.down_blocks.3.conv' : 'discriminator_woadv/down_block2d_woadv_3/conv2d_spectral_norm_3',
+    'discs.1.down_blocks.3.norm' : 'discriminator_woadv/down_block2d_woadv_3/instance_normalization_3',
+    'discs.1.conv'               : 'discriminator_woadv/conv2d_spectral_norm_4',
  
   }
   layer_tf_to_torch = {v : k for k, v in layer_torch_to_tf.items()}
@@ -91,9 +99,14 @@ def get_tensor_by_tfname_dis(weight_name):
   torch_layer_name = layer_tf_to_torch[tf_layer_name]
   if '/conv2d' in weight_name:
     if 'kernel' in weight_name:
-      value = checkpoint_dict[torch_layer_name+'.weight'].numpy().transpose((2,3,1,0))
+      value = checkpoint_dict[torch_layer_name+'.weight_orig'].numpy().transpose((2,3,1,0))
     elif 'bias' in weight_name:
       value = checkpoint_dict[torch_layer_name+'.bias'].numpy()
+    elif 'u:0' in weight_name:
+      value = checkpoint_dict[torch_layer_name+'.weight_u'].numpy().reshape((1,-1))
+    elif 'v:0' in weight_name:
+      value = checkpoint_dict[torch_layer_name+'.weight_v'].numpy().reshape((1,-1))
+
 
   elif '/instance_normalization' in weight_name:
     if 'gamma' in weight_name:
@@ -116,8 +129,9 @@ def set_weights_for_conv_dis(conv_layer):
   for a_weight in conv_layer.weights:
     weight_name = a_weight.name
     value = get_tensor_by_tfname_dis(weight_name)
-    weight_list.append(value)
-  conv_layer.set_weights(weight_list)
+    a_weight.assign(value)
+  #   weight_list.append(value)
+  # conv_layer.set_weights(weight_list)
 
 def set_weights_for_convblock_dis(conv_block):
   # for conv_block in network_module.layers:
@@ -126,15 +140,16 @@ def set_weights_for_convblock_dis(conv_block):
     for a_weight in a_layer.weights:
       weight_name = a_weight.name
       value = get_tensor_by_tfname_dis(weight_name)
-      weight_list.append(value)
-    a_layer.set_weights(weight_list)
+      a_weight.assign(value)
+    #   weight_list.append(value)
+    # a_layer.set_weights(weight_list)
 
 
 set_weights_for_convblock_dis(discriminator.encoder_blocks)
 set_weights_for_conv_dis(discriminator.conv)
-# discriminator.save_weights('./checkpoints/discriminator/discriminator')
+discriminator.save_weights('./checkpoints/discriminator_woadv/discriminator')
 
-discriminator_maps_real, discriminator_pred_map = discriminator(driving_image, key_points=detach_keypoint(kp_driving), training = True)
+# discriminator_maps_real, discriminator_pred_map = discriminator(driving_image, key_points=detach_keypoint(kp_driving), training = True)
 
 
 # print('----------------after discriminator -----------')
@@ -157,7 +172,22 @@ with tf.GradientTape() as tape:
     losses_discriminator = discriminator_full(driving_image, generated, training = True)
     print(losses_discriminator)
 
+# for weight_item in discriminator.weights:
+#   if 'discriminator_woadv/down_block2d_woadv/conv2d_spectral_norm' in weight_item.name:
+#     print(weight_item.name, "\t", weight_item)
 
+# count = 0
+# for k, v in checkpoint_dict.items():
+#   if 'num_batches_tracked' in k:
+#     continue
+#   if 'discs.1.down_blocks.0.conv' in k:
+#     print(k)
+#     if len(v.shape) == 4:
+#       v = v.numpy().transpose((2,3,1,0))
+#     print(v)
+
+#   # print(v.shape)
+#   count += 1
 
 
 

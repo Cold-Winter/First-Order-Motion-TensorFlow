@@ -18,7 +18,7 @@ class FullGenerator(tf.keras.Model):
     self.generator = generator
     self.discriminator = discriminator
     # comment by yandong
-    self.loss_weights = {'generator_gan':1}
+    self.loss_weights = {'generator_gan':0}
 
   def call(self, source_images, driving_images, tape):
     kp_source = self.key_point_detector(source_images)
@@ -45,28 +45,28 @@ class FullGenerator(tf.keras.Model):
       loss_values['perceptual'] = perceptual_loss
 
     # Gan loss (only one scale used, the original [1])
+    if self.loss_weights['generator_gan'] != 0:
+        # We detach the keypoints here so we dont compue its gradients and we use it as input images!!!
+        discriminator_maps_real, _ = self.discriminator(driving_images, key_points=detach_keypoint(kp_driving))
+        discriminator_maps_generated, discriminator_pred_map_generated = self.discriminator(generated['prediction'], key_points=detach_keypoint(kp_driving))
 
-    # We detach the keypoints here so we dont compue its gradients and we use it as input images!!!
-    discriminator_maps_real, _ = self.discriminator(driving_images, key_points=detach_keypoint(kp_driving))
-    discriminator_maps_generated, discriminator_pred_map_generated = self.discriminator(generated['prediction'], key_points=detach_keypoint(kp_driving))
+        # LSGAN G Loss
+        # Discriminator outputs a pathmap like pix2pix where 1 labels are for real images and 0 labels are for generated images
+        # Since we want to fool the discriminator we want our generated images to output 1
+        gan_loss = tf.reduce_mean((discriminator_pred_map_generated - 1) ** 2)
 
-    # LSGAN G Loss
-    # Discriminator outputs a pathmap like pix2pix where 1 labels are for real images and 0 labels are for generated images
-    # Since we want to fool the discriminator we want our generated images to output 1
-    gan_loss = tf.reduce_mean((discriminator_pred_map_generated - 1) ** 2)
+        # same as tf.reduce_mean(tf.keras.losses.mean_squared_error(tf.ones_like(discriminator_pred_map_generated), discriminator_pred_map_generated))
+        gan_loss = self.loss_weights['generator_gan'] * gan_loss
+        loss_values['gen_gan'] = gan_loss
+        
+        feature_matching_loss = 0.0
+        # feature_matching loss
+        # comment by yandong
+        for feature_item_id in range(len(discriminator_maps_real)):
+            feature_matching_loss_item = tf.reduce_mean(tf.abs(discriminator_maps_real[feature_item_id] - discriminator_maps_generated[feature_item_id]))
+            feature_matching_loss += feature_matching_loss_item * self.feature_matching_weights
 
-    # same as tf.reduce_mean(tf.keras.losses.mean_squared_error(tf.ones_like(discriminator_pred_map_generated), discriminator_pred_map_generated))
-    gan_loss = self.loss_weights['generator_gan'] * gan_loss
-    loss_values['gen_gan'] = gan_loss
-    
-    feature_matching_loss = 0.0
-    # feature_matching loss
-    # comment by yandong
-    for feature_item_id in range(len(discriminator_maps_real)):
-        feature_matching_loss_item = tf.reduce_mean(tf.abs(discriminator_maps_real[feature_item_id] - discriminator_maps_generated[feature_item_id]))
-        feature_matching_loss += feature_matching_loss_item * self.feature_matching_weights
-
-    loss_values['feature_matching'] = feature_matching_loss
+        loss_values['feature_matching'] = feature_matching_loss
 
     # Equivariance Loss
     batch_size = driving_images.shape[0]

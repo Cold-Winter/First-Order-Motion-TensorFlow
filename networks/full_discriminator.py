@@ -12,8 +12,14 @@ class FullDiscriminator(tf.keras.Model):
 
     loss_values = {}
 
-    _, discriminator_pred_map_real = self.discriminator(x_driving, key_points=detach_keypoint(kp_driving))
     _, discriminator_pred_map_generated = self.discriminator(tf.stop_gradient(generated['prediction']), key_points=detach_keypoint(kp_driving))
+    _, discriminator_pred_map_real = self.discriminator(x_driving, key_points=detach_keypoint(kp_driving))
+    
+
+    # print('---------------', 'generated pred map')
+    # temp_trans = tf.transpose(generated['prediction'], (0,3,1,2))
+    # print(temp_trans)
+    # print('---------------', 'after generated pred map')
     
     # LSGAN
     discriminator_loss = (1 - discriminator_pred_map_real) ** 2 + discriminator_pred_map_generated ** 2

@@ -71,7 +71,7 @@ class ImagePyramide(tf.keras.Model):
 class Vgg19(tf.keras.Model):
   def __init__(self):
     super(Vgg19, self).__init__()
-    layers = ['block1_conv2', 'block2_conv2', 'block3_conv2', 'block4_conv2', 'block5_conv2'] 
+    layers = ['block1_conv1', 'block2_conv1', 'block3_conv1', 'block4_conv1', 'block5_conv1'] 
     vgg = tf.keras.applications.VGG19(include_top=False, weights='imagenet')
     vgg.trainable = False
     
@@ -80,7 +80,7 @@ class Vgg19(tf.keras.Model):
     self.model = tf.keras.Model([vgg.input], outputs)
   
   def call(self, x):
-    x = tf.keras.applications.vgg19.preprocess_input(x)
+    x = tf.keras.applications.vgg19.preprocess_input(x * 255.0)
     return self.model(x)
 
 class Hourglass(tf.keras.Model):
